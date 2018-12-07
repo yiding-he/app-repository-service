@@ -17,4 +17,16 @@ public class Util {
             return s.substring(0, s.length() - end.length());
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public static String[] subArray(String[] arr, int start) {
+        String[] result = new String[arr.length - start];
+        System.arraycopy(arr, start, result, 0, arr.length - start);
+        return result;
+    }
+
+    public static boolean isUrl(String appUrl) {
+        return appUrl.substring(0, 7).equalsIgnoreCase("http://") ||
+                appUrl.substring(0, 8).equalsIgnoreCase("https://");
+    }
 }
