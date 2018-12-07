@@ -45,9 +45,13 @@ public class RemoteAppLauncher {
         }
 
         List<URL> urls = parseClassPathUrls(appUrl);
+        System.out.println("CLASS_PATH:");
+        urls.forEach(url -> System.out.println("  " + url));
+
         String mainClassName = parseMainClassName(appUrl);
 
         URLClassLoader classLoader = new URLClassLoader(urls.toArray(new URL[0]));
+        Thread.currentThread().setContextClassLoader(classLoader);
         Class<?> mainClass = classLoader.loadClass(mainClassName);
         mainClass.getMethod("main", String[].class).invoke(null, (Object) appArgs);
     }
