@@ -9,10 +9,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -25,10 +28,25 @@ public class AppController {
     @RequestMapping({"", "/"})
     @ResponseBody
     public String index() {
+
+        List<String> apps = listApps();
+
         return "欢迎使用 Application Repository Server！\n" +
                 "请执行下面的命令之一：\n" +
                 "  wget " + repositoryConfig.getUrlPrefix() + "/apps/APP_NAME/start -O - | sh\n" +
-                "  curl -s "+repositoryConfig.getUrlPrefix() +"/apps/APP_NAME/start | sh";
+                "  curl -s "+repositoryConfig.getUrlPrefix() +"/apps/APP_NAME/start | sh\n\n" +
+                "可用的 apps: " + String.join(" ", apps);
+    }
+
+    private List<String> listApps() {
+        try {
+            return Files.list(Paths.get(repositoryConfig.getRoot(), "apps"))
+                    .filter(Files::isDirectory)
+                    .map(p -> p.getFileName().toString())
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            return Collections.emptyList();
+        }
     }
 
     @RequestMapping("/apps/{appName}/class-path")
