@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.io.File;
@@ -47,10 +48,19 @@ public class AppController {
 
     @RequestMapping("/apps/{appName}/start")
     @ResponseBody
-    public String startScript(@PathVariable("appName") String appName) throws Exception {
+    public String startScript(
+            @PathVariable("appName") String appName,
+            @RequestParam(required = false, defaultValue = "") String args
+    ) throws Exception {
+
         URI uri = AppController.class.getResource("/templates/start.template.sh").toURI();
         Path path = Paths.get(uri);
         String script = new String(Files.readAllBytes(path));
-        return script.replace("{{appname}}", appName);
+        String urlPrefix = repositoryConfig.getUrlPrefix();
+
+        return script
+                .replace("{{args}}", args)
+                .replace("{{urlPrefix}}", urlPrefix)
+                .replace("{{appname}}", appName);
     }
 }
