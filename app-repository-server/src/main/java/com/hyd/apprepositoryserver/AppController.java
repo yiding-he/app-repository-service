@@ -1,7 +1,6 @@
 package com.hyd.apprepositoryserver;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,13 +28,16 @@ public class AppController {
     @ResponseBody
     public String index() {
 
-        List<String> apps = listApps();
+        List<String> apps = listApps().stream()
+                .map(s -> "  - " + s)
+                .collect(Collectors.toList());
 
-        return "欢迎使用 Application Repository Server！\n" +
-                "请执行下面的命令之一：\n" +
-                "  wget " + repositoryConfig.getUrlPrefix() + "/apps/APP_NAME/start -O - | sh\n" +
-                "  curl -s "+repositoryConfig.getUrlPrefix() +"/apps/APP_NAME/start | sh\n\n" +
-                "可用的 apps: " + String.join(" ", apps);
+        return "================================================\n" +
+                "欢迎使用 Application Repository Server！\n" +
+                "执行下面的命令来启动 App：\n\n" +
+                "  curl -s " + repositoryConfig.getUrlPrefix() + "/apps/APP_NAME/start | sh\n\n" +
+                "可用的 APP_NAME: \n" + String.join("\n", apps) + "\n" +
+                "================================================\n";
     }
 
     private List<String> listApps() {
