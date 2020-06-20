@@ -1,12 +1,26 @@
 package com.hyd.remoteapplauncher;
 
-import javax.activation.MimetypesFileTypeMap;
-import java.io.*;
+import java.io.Closeable;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.activation.MimetypesFileTypeMap;
 
 /**
  * 发送 HTTP 请求并返回结果。每个 HttpSender
@@ -21,6 +35,14 @@ public class HttpRequest {
     public static final int DEFAULT_TIMEOUT = 60000;
 
     public static final String DEFAULT_CHATSET = "UTF-8";
+
+    /////////////////////////////////////////////////////////
+
+    @FunctionalInterface
+    private interface InputStreamConsumer {
+
+        void accept(InputStream inputStream) throws IOException;
+    }
 
     /////////////////////////////////////////////////////////
 
@@ -244,7 +266,7 @@ public class HttpRequest {
      */
     private void sendPost0() throws IOException {
         if (files.isEmpty()) {
-            sendSinglePartRequest(true, null);
+            sendSinglePartRequest(true, null, this::readStringContent);
         } else {
             sendMultipartRequest();
         }
@@ -256,11 +278,10 @@ public class HttpRequest {
      * @param content 要提交的内容
      *
      * @return 服务器响应
-     *
      * @throws IOException 如果请求失败
      */
     public String requestPost(String content) throws IOException {
-        sendSinglePartRequest(true, content);
+        sendSinglePartRequest(true, content, this::readStringContent);
         return getResponseString();
     }
 
@@ -268,7 +289,6 @@ public class HttpRequest {
      * 发送 POST 请求。如果有文件待上传则会上传文件
      *
      * @return 服务器响应
-     *
      * @throws IOException 如果请求失败
      */
     public String requestPost() throws IOException {
@@ -280,15 +300,18 @@ public class HttpRequest {
      * 发送 GET 请求
      *
      * @return 服务器响应
-     *
      * @throws IOException 如果请求失败
      */
     public String request() throws IOException {
-        sendSinglePartRequest(false, null);
+        sendSinglePartRequest(false, null, this::readStringContent);
         return getResponseString();
     }
 
-    private void sendSinglePartRequest(boolean post, String content) throws IOException {
+    public void download(String path) throws IOException {
+        sendSinglePartRequest(false, null, inputStream -> this.downloadFile(inputStream, path));
+    }
+
+    private void sendSinglePartRequest(boolean post, String content, InputStreamConsumer consumer) throws IOException {
         InputStream inputStream = null;
         OutputStream outputStream = null;
 
@@ -334,9 +357,15 @@ public class HttpRequest {
             }
 
             try {
-                inputStream = connection.getInputStream();
-                this.response = read(inputStream);
                 this.responseContentType = connection.getContentType();
+                inputStream = connection.getInputStream();
+            } catch (IOException e) {
+                this.lastResponseCode = connection.getResponseCode();
+                return;
+            }
+
+            try {
+                consumer.accept(inputStream);
             } catch (IOException e) {
                 if (connection.getErrorStream() != null) {
                     this.response = read(connection.getErrorStream());
@@ -345,8 +374,23 @@ public class HttpRequest {
             } finally {
                 this.lastResponseCode = connection.getResponseCode();
             }
+
         } finally {
             close(inputStream, outputStream);
+        }
+    }
+
+    private void readStringContent(InputStream inputStream) throws IOException {
+        this.response = read(inputStream);
+    }
+
+    private void downloadFile(InputStream inputStream, String path) throws IOException {
+        Path filePath = Paths.get(path);
+        if (!Files.exists(filePath)) {
+            Files.createFile(filePath);
+        }
+        try (OutputStream out = Files.newOutputStream(filePath)) {
+            Util.copyStream(inputStream, out);
         }
     }
 
@@ -558,12 +602,11 @@ public class HttpRequest {
          * milliseconds.
          *
          * @return a multipart boundary string
-         *
          * @see #getContentType(String)
          */
         public static String createBoundary() {
             return "--------------------" +
-                    Long.toString(System.currentTimeMillis(), 16);
+                Long.toString(System.currentTimeMillis(), 16);
         }
 
         /**
@@ -581,7 +624,6 @@ public class HttpRequest {
          * @param boundary the boundary string
          *
          * @return the content type string
-         *
          * @see #createBoundary()
          */
         public static String getContentType(String boundary) {
@@ -597,7 +639,7 @@ public class HttpRequest {
          * @throws IOException on input/output errors
          */
         public void writeField(String name, boolean value)
-                throws IOException {
+            throws IOException {
             writeField(name, new Boolean(value).toString());
         }
 
@@ -610,7 +652,7 @@ public class HttpRequest {
          * @throws IOException on input/output errors
          */
         public void writeField(String name, double value)
-                throws IOException {
+            throws IOException {
             writeField(name, Double.toString(value));
         }
 
@@ -623,7 +665,7 @@ public class HttpRequest {
          * @throws IOException on input/output errors
          */
         public void writeField(String name, float value)
-                throws IOException {
+            throws IOException {
             writeField(name, Float.toString(value));
         }
 
@@ -636,7 +678,7 @@ public class HttpRequest {
          * @throws IOException on input/output errors
          */
         public void writeField(String name, long value)
-                throws IOException {
+            throws IOException {
             writeField(name, Long.toString(value));
         }
 
@@ -649,7 +691,7 @@ public class HttpRequest {
          * @throws IOException on input/output errors
          */
         public void writeField(String name, int value)
-                throws IOException {
+            throws IOException {
             writeField(name, Integer.toString(value));
         }
 
@@ -662,7 +704,7 @@ public class HttpRequest {
          * @throws IOException on input/output errors
          */
         public void writeField(String name, short value)
-                throws IOException {
+            throws IOException {
             writeField(name, Short.toString(value));
         }
 
@@ -675,7 +717,7 @@ public class HttpRequest {
          * @throws IOException on input/output errors
          */
         public void writeField(String name, char value)
-                throws IOException {
+            throws IOException {
             writeField(name, new Character(value).toString());
         }
 
@@ -689,7 +731,7 @@ public class HttpRequest {
          * @throws IOException on input/output errors
          */
         public void writeField(String name, String value)
-                throws IOException {
+            throws IOException {
             if (name == null) {
                 throw new IllegalArgumentException("Name cannot be null or empty.");
             }
@@ -728,7 +770,7 @@ public class HttpRequest {
          * @throws IOException on input/output errors
          */
         public void writeFile(String name, String mimeType, File file)
-                throws IOException {
+            throws IOException {
             if (file == null) {
                 throw new IllegalArgumentException("File cannot be null.");
             }
@@ -754,7 +796,7 @@ public class HttpRequest {
          */
         public void writeFile(String name, String mimeType,
                               String fileName, InputStream is)
-                throws IOException {
+            throws IOException {
             if (is == null) {
                 throw new IllegalArgumentException("Input stream cannot be null.");
             }
@@ -774,7 +816,7 @@ public class HttpRequest {
             out.writeBytes(NEWLINE);
             // write content header
             out.writeBytes("Content-Disposition: form-data; name=\"" + name +
-                    "\"; filename=\"" + fileName + "\"");
+                "\"; filename=\"" + fileName + "\"");
             out.writeBytes(NEWLINE);
             if (mimeType != null) {
                 out.writeBytes("Content-Type: " + mimeType);
@@ -810,7 +852,7 @@ public class HttpRequest {
          */
         public void writeFile(String name, String mimeType,
                               String fileName, byte[] data)
-                throws IOException {
+            throws IOException {
             if (data == null) {
                 throw new IllegalArgumentException("Data cannot be null.");
             }
@@ -830,7 +872,7 @@ public class HttpRequest {
             out.writeBytes(NEWLINE);
             // write content header
             out.writeBytes("Content-Disposition: form-data; name=\"" + name +
-                    "\"; filename=\"" + fileName + "\"");
+                "\"; filename=\"" + fileName + "\"");
             out.writeBytes(NEWLINE);
             if (mimeType != null) {
                 out.writeBytes("Content-Type: " + mimeType);

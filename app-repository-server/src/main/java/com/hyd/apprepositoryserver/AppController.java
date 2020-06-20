@@ -1,22 +1,22 @@
 package com.hyd.apprepositoryserver;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
-
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Controller;
+import org.springframework.util.FileCopyUtils;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 public class AppController {
@@ -70,12 +70,23 @@ public class AppController {
     @ResponseBody
     public String startScript(
             @PathVariable("appName") String appName,
-            @RequestParam(required = false, defaultValue = "") String args
+            @RequestParam(name = "args", required = false, defaultValue = "") String args
     ) throws Exception {
+        return readResource(appName, "classpath:templates/start.template.sh", args);
+    }
 
-        URI uri = AppController.class.getResource("/templates/start.template.sh").toURI();
-        Path path = Paths.get(uri);
-        String script = new String(Files.readAllBytes(path));
+    @RequestMapping("/apps/{appName}/start-boot")
+    @ResponseBody
+    public String startSpringBootScript(
+            @PathVariable("appName") String appName,
+            @RequestParam(name = "args", required = false, defaultValue = "") String args
+    ) throws Exception {
+        return readResource(appName, "classpath:templates/start.template.sb.sh", args);
+    }
+
+    private String readResource(String appName, String path, String args) throws IOException {
+        ClassPathResource resource = new ClassPathResource(path);
+        String script = FileCopyUtils.copyToString(new InputStreamReader(resource.getInputStream()));
         String urlPrefix = repositoryConfig.getUrlPrefix();
 
         return script

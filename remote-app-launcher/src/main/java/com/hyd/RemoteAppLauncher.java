@@ -2,7 +2,6 @@ package com.hyd;
 
 import com.hyd.remoteapplauncher.HttpRequest;
 import com.hyd.remoteapplauncher.Util;
-
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -50,14 +49,31 @@ public class RemoteAppLauncher {
 
         String mainClassName = parseMainClassName(appUrl);
 
-        URLClassLoader classLoader = new URLClassLoader(urls.toArray(new URL[0]));
-        Thread.currentThread().setContextClassLoader(classLoader);
-        Class<?> mainClass = classLoader.loadClass(mainClassName);
-        mainClass.getMethod("main", String[].class).invoke(null, (Object) appArgs);
+        if (Util.strNotEmpty(mainClassName)) {
+            URLClassLoader classLoader = new URLClassLoader(urls.toArray(new URL[0]));
+            Thread.currentThread().setContextClassLoader(classLoader);
+            Class<?> mainClass = classLoader.loadClass(mainClassName);
+            mainClass.getMethod("main", String[].class).invoke(null, (Object) appArgs);
+
+        } else {
+            String url = urls.get(1).toString();
+            System.out.println("downloading jar " + url + " ...");
+            String fileName = url.substring(url.lastIndexOf("/") + 1);
+            new HttpRequest(url).download(fileName);
+            new ProcessBuilder("java", "-jar", fileName).start();
+            System.out.println("jar " + fileName + " started.");
+        }
     }
 
-    private static String parseMainClassName(String appUrl) throws IOException {
-        return new HttpRequest(appUrl + "/main-class").request();
+    private static String parseMainClassName(String appUrl) {
+        try {
+            String mainClassUrl = appUrl + "/main-class";
+            String mainClassName = new HttpRequest(mainClassUrl).request();
+            System.out.println("Main class from " + mainClassUrl + " : '" + mainClassName + "'");
+            return mainClassName;
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     private static List<URL> parseClassPathUrls(String appUrl) throws IOException {
